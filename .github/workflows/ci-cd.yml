@@ -1,0 +1,65 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      couchdb:
+        image: couchdb:3.3
+        env:
+          COUCHDB_USER: admin
+          COUCHDB_PASSWORD: ci-password
+        ports: ["5984:5984"]
+        options: >-
+          --health-cmd "curl -fsS http://localhost:5984/_up"
+          --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Pruebas (unitarias + integración contra CouchDB real)
+        env:
+          COUCHDB_URL: http://localhost:5984
+          COUCHDB_USER: admin
+          COUCHDB_PASSWORD: ci-password
+        run: python -m pytest -q -rs
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen y probar el stack completo
+        env:
+          COUCHDB_PASSWORD: ci-password
+        run: |
+          docker compose up -d --build --wait
+          docker compose exec -T app python scripts/seed.py
+          curl -fsS http://localhost:8000/health
+          curl -fsS http://localhost:8000/api/stats
+          docker compose down -v
+
+  deploy:
+    needs: docker
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar despliegue en Render
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+      - name: Verificar la app desplegada
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "$APP_URL/health"; then echo; echo "App en línea"; exit 0; fi
+            echo "esperando el despliegue ($i/30)…"; sleep 10
+          done
+          echo "La app no respondió a tiempo"; exit 1

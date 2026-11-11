@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: nosql-couchdb-app
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: false # los despliegues los dispara GitHub Actions (deploy hook)
+    envVars:
+      - key: COUCHDB_URL
+        sync: false # URL de la instancia de Cloudant, se define en el panel
+      - key: COUCHDB_USER
+        sync: false
+      - key: COUCHDB_PASSWORD
+        sync: false
+      - key: COUCHDB_DB
+        value: tasks
