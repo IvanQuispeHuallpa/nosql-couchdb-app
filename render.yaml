@@ -1,4 +1,24 @@
 services:
+  # Base de datos NoSQL: Apache CouchDB oficial, desplegada como imagen Docker.
+  # El plan gratuito de Render no tiene disco persistente: los datos se pierden al reiniciar
+  # (la app recrea la base y el índice sola). Para persistencia, usa un plan de pago con disco
+  # montado en /opt/couchdb/data.
+  - type: web
+    name: couchdb
+    runtime: image
+    image:
+      url: docker.io/library/couchdb:3.3
+    plan: free
+    healthCheckPath: /_up
+    envVars:
+      - key: PORT
+        value: "5984"
+      - key: COUCHDB_USER
+        value: admin
+      - key: COUCHDB_PASSWORD
+        generateValue: true
+
+  # Aplicación Flask (se construye con el Dockerfile del repositorio).
   - type: web
     name: nosql-couchdb-app
     runtime: docker
@@ -7,10 +27,19 @@ services:
     autoDeploy: false # los despliegues los dispara GitHub Actions (deploy hook)
     envVars:
       - key: COUCHDB_URL
-        sync: false # URL de la instancia de Cloudant, se define en el panel
+        fromService:
+          type: web
+          name: couchdb
+          property: hostport # red privada de Render: "couchdb:5984"
       - key: COUCHDB_USER
-        sync: false
+        fromService:
+          type: web
+          name: couchdb
+          envVarKey: COUCHDB_USER
       - key: COUCHDB_PASSWORD
-        sync: false
+        fromService:
+          type: web
+          name: couchdb
+          envVarKey: COUCHDB_PASSWORD
       - key: COUCHDB_DB
         value: tasks

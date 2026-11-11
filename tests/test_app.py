@@ -116,6 +116,23 @@ def test_delete_passes_current_rev():
     assert "rev=3-c" in responses.calls[1].request.url
 
 
+def test_url_without_scheme_gets_http():
+    assert CouchStore("couchdb:5984", "tasks").base == "http://couchdb:5984"
+    assert CouchStore("https://x.example.com/", "tasks").base == "https://x.example.com"
+
+
+@responses.activate
+def test_missing_database_is_recreated_and_request_retried():
+    """Plan sin disco: si CouchDB se reinicia, la base desaparece; el cliente la recrea y reintenta."""
+    gone = {"error": "not_found", "reason": "Database does not exist."}
+    responses.post(f"{BASE}/tasks/_find", status=404, json=gone)
+    responses.put(f"{BASE}/tasks", status=201, json={"ok": True})
+    responses.post(f"{BASE}/tasks/_index", json={"result": "created"})
+    responses.post(f"{BASE}/tasks/_find", json={"docs": []})
+    assert CouchStore(BASE, "tasks").find({"type": "task"}) == []
+    assert [c.request.method for c in responses.calls] == ["POST", "PUT", "POST", "POST"]
+
+
 @responses.activate
 def test_get_missing_raises_not_found():
     responses.get(f"{BASE}/tasks/zz", status=404)

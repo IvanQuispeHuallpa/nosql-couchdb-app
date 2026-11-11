@@ -1,6 +1,6 @@
 # Tablero de tareas con Apache CouchDB
 
-App de demostración Flask + **Apache CouchDB** (base de datos NoSQL orientada a documentos): tablero Kanban cuyas tareas son documentos JSON consultados con Mango (`_find`). Empaquetada con Docker, probada y desplegada automáticamente con GitHub Actions en Render, usando IBM Cloudant como CouchDB en la nube.
+App de demostración Flask + **Apache CouchDB** (base de datos NoSQL orientada a documentos): tablero Kanban cuyas tareas son documentos JSON consultados con Mango (`_find`). Empaquetada con Docker, probada y desplegada automáticamente con GitHub Actions en Render, donde tanto la app como CouchDB corren como servicios del mismo Blueprint.
 
 - App en vivo: _pendiente — URL de Render_
 - Base de datos NoSQL: CouchDB (sin Redis, MongoDB, Neo4j ni Prometheus)
@@ -46,6 +46,7 @@ Secreto de GitHub requerido: `RENDER_DEPLOY_HOOK_URL`. Variable (Settings → Va
 
 ### Puesta en marcha en la nube
 
-1. Crear una instancia gratuita de **IBM Cloudant** (plan Lite) y credenciales de servicio; copiar `url`, `username` y `password`.
-2. En Render: **New → Blueprint** con este repositorio (`render.yaml`) y definir `COUCHDB_URL`, `COUCHDB_USER`, `COUCHDB_PASSWORD`.
-3. Copiar el *Deploy Hook* del servicio como secreto `RENDER_DEPLOY_HOOK_URL` y la URL pública como variable `APP_URL`.
+1. En Render: **New → Blueprint** con este repositorio. `render.yaml` crea dos servicios: `couchdb` (imagen oficial `couchdb:3.3`, contraseña generada) y `nosql-couchdb-app` (la app), y conecta la app a la base por la red privada de Render sin que tengas que copiar credenciales.
+2. Copiar el *Deploy Hook* del servicio `nosql-couchdb-app` como secreto `RENDER_DEPLOY_HOOK_URL` y su URL pública como variable `APP_URL`.
+
+**Limitaciones del plan gratuito:** Render no ofrece disco persistente, así que los datos de CouchDB se pierden cuando el servicio se reinicia o se duerme por inactividad (la app recrea la base y el índice sola). Además, los servicios se duermen tras 15 min sin tráfico y el primer acceso tarda cerca de un minuto. Para conservar los datos, usa un plan de pago con disco montado en `/opt/couchdb/data`.
