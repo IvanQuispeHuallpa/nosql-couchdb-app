@@ -1,10 +1,11 @@
+import json
 import os
 
 import pytest
 import requests
 import responses
 
-from app.couch import CouchStore, NotFound
+from app.couch import DEMO_TASKS, CouchStore, NotFound
 from app.main import create_app
 
 BASE = "http://couch.test"
@@ -116,6 +117,40 @@ def test_delete_passes_current_rev():
     assert "rev=3-c" in responses.calls[1].request.url
 
 
+@responses.activate
+def test_new_database_is_seeded_but_existing_one_is_not():
+    responses.post(f"{BASE}/tasks/_index", json={"result": "created"})
+    responses.post(f"{BASE}/tasks", json={"ok": True, "id": "x", "rev": "1-a"})
+
+    responses.put(f"{BASE}/tasks", status=201)  # base nueva
+    assert CouchStore(BASE, "tasks").ensure_db() is True
+    inserted = [c for c in responses.calls if c.request.method == "POST" and c.request.url == f"{BASE}/tasks"]
+    assert len(inserted) == len(DEMO_TASKS)
+    assert {json.loads(c.request.body)["status"] for c in inserted} == {"todo", "doing", "done"}
+
+    responses.replace(responses.PUT, f"{BASE}/tasks", status=412)  # ya existía: no duplica
+    before = len(responses.calls)
+    assert CouchStore(BASE, "tasks").ensure_db() is False
+    assert all(c.request.url != f"{BASE}/tasks" or c.request.method != "POST" for c in responses.calls[before:])
+
+
+@responses.activate
+def test_seed_can_be_disabled():
+    responses.put(f"{BASE}/tasks", status=201)
+    responses.post(f"{BASE}/tasks/_index", json={"result": "created"})
+    CouchStore(BASE, "tasks", seed=False).ensure_db()
+    assert len(responses.calls) == 2  # solo crear base + índice
+
+
+def test_api_returns_503_when_database_is_down():
+    class Down(MemoryStore):
+        def find(self, *a, **k):
+            raise requests.ConnectionError("couchdb is asleep")
+
+    r = create_app(store=Down()).test_client().get("/api/tasks")
+    assert r.status_code == 503 and "unavailable" in r.get_json()["error"]
+
+
 def test_url_without_scheme_gets_http():
     assert CouchStore("couchdb:5984", "tasks").base == "http://couchdb:5984"
     assert CouchStore("https://x.example.com/", "tasks").base == "https://x.example.com"
@@ -129,7 +164,7 @@ def test_missing_database_is_recreated_and_request_retried():
     responses.put(f"{BASE}/tasks", status=201, json={"ok": True})
     responses.post(f"{BASE}/tasks/_index", json={"result": "created"})
     responses.post(f"{BASE}/tasks/_find", json={"docs": []})
-    assert CouchStore(BASE, "tasks").find({"type": "task"}) == []
+    assert CouchStore(BASE, "tasks", seed=False).find({"type": "task"}) == []
     assert [c.request.method for c in responses.calls] == ["POST", "PUT", "POST", "POST"]
 
 
@@ -153,7 +188,7 @@ def _couch_available():
 
 @pytest.mark.skipif(not _couch_available(), reason="define COUCHDB_URL apuntando a un CouchDB en ejecución")
 def test_integration_against_real_couchdb():
-    store = CouchStore(os.environ["COUCHDB_URL"], "tasks_ci_test", os.getenv("COUCHDB_USER"), os.getenv("COUCHDB_PASSWORD"))
+    store = CouchStore(os.environ["COUCHDB_URL"], "tasks_ci_test", os.getenv("COUCHDB_USER"), os.getenv("COUCHDB_PASSWORD"), seed=False)
     requests.delete(store._url(), auth=store.http.auth)  # empieza limpio
     app = create_app(store=store).test_client()
     t = app.post("/api/tasks", json={"title": "real", "tags": ["ci"]}).get_json()
@@ -161,4 +196,18 @@ def test_integration_against_real_couchdb():
     assert app.patch(f"/api/tasks/{t['_id']}", json={"status": "doing"}).get_json()["status"] == "doing"
     assert app.get("/api/stats").get_json()["doing"] == 1
     assert app.delete(f"/api/tasks/{t['_id']}").status_code == 200
+    requests.delete(store._url(), auth=store.http.auth)
+
+
+@pytest.mark.skipif(not _couch_available(), reason="define COUCHDB_URL apuntando a un CouchDB en ejecución")
+def test_integration_seeds_on_first_use_and_after_database_loss():
+    """La demo 'parece persistente': base nueva → datos de ejemplo; base perdida → se restauran sin duplicarse."""
+    store = CouchStore(os.environ["COUCHDB_URL"], "tasks_ci_seed", os.getenv("COUCHDB_USER"), os.getenv("COUCHDB_PASSWORD"))
+    requests.delete(store._url(), auth=store.http.auth)
+    app = create_app(store=store).test_client()
+    assert app.get("/api/stats").get_json() == {"total": 5, "todo": 2, "doing": 1, "done": 2}
+    assert app.get("/api/stats").get_json()["total"] == 5  # peticiones repetidas no duplican
+
+    requests.delete(store._url(), auth=store.http.auth)  # simula reinicio de CouchDB sin disco
+    assert app.get("/api/stats").get_json()["total"] == 5
     requests.delete(store._url(), auth=store.http.auth)

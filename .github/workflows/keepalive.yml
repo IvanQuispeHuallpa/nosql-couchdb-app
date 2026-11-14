@@ -1,0 +1,21 @@
+name: Keepalive
+
+# Mantiene despiertos los servicios gratuitos de Render (se duermen tras 15 min sin tráfico).
+# Está APAGADO por defecto. Actívalo antes de una demo o de la calificación:
+#   GitHub → Settings → Secrets and variables → Actions → Variables → KEEPALIVE = true
+# y desactívalo después (el plan gratuito de Render tiene un límite mensual de horas
+# compartido entre servicios; tener dos servicios despiertos 24/7 puede agotarlo).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: github.event_name == 'workflow_dispatch' || vars.KEEPALIVE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET /health (despierta la app y, a través de ella, CouchDB)
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: curl -fsS --retry 5 --retry-delay 15 --retry-all-errors --max-time 120 "$APP_URL/health"

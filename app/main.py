@@ -1,3 +1,4 @@
+import requests
 from flask import Flask, jsonify, render_template, request
 
 from .couch import CouchStore, NotFound
@@ -16,6 +17,11 @@ def create_app(store=None) -> Flask:
             s.ensure_db()
             app.config["READY"] = True
         return s
+
+    @app.errorhandler(requests.RequestException)
+    def database_unavailable(_err):
+        # CouchDB dormido o arrancando (plan gratuito): respuesta clara en vez de un 500 genérico.
+        return {"error": "database unavailable, retry shortly"}, 503
 
     @app.get("/")
     def index():

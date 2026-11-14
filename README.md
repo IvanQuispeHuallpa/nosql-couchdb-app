@@ -9,7 +9,7 @@ App de demostración Flask + **Apache CouchDB** (base de datos NoSQL orientada a
 
 ```bash
 docker compose up -d --build
-docker compose exec app python scripts/seed.py
+# la primera petición crea la base y la rellena con 5 tareas de ejemplo
 # abrir http://localhost:8000   (Fauxton, el panel de CouchDB: http://localhost:5984/_utils, usuario admin / change-me)
 ```
 
@@ -49,4 +49,13 @@ Secreto de GitHub requerido: `RENDER_DEPLOY_HOOK_URL`. Variable (Settings → Va
 1. En Render: **New → Blueprint** con este repositorio. `render.yaml` crea dos servicios: `couchdb` (imagen oficial `couchdb:3.3`, contraseña generada) y `nosql-couchdb-app` (la app), y conecta la app a la base por la red privada de Render sin que tengas que copiar credenciales.
 2. Copiar el *Deploy Hook* del servicio `nosql-couchdb-app` como secreto `RENDER_DEPLOY_HOOK_URL` y su URL pública como variable `APP_URL`.
 
-**Limitaciones del plan gratuito:** Render no ofrece disco persistente, así que los datos de CouchDB se pierden cuando el servicio se reinicia o se duerme por inactividad (la app recrea la base y el índice sola). Además, los servicios se duermen tras 15 min sin tráfico y el primer acceso tarda cerca de un minuto. Para conservar los datos, usa un plan de pago con disco montado en `/opt/couchdb/data`.
+### Datos en el plan gratuito (no persistentes, pero la demo lo parece)
+
+Render no ofrece disco persistente gratis, así que los datos de CouchDB se pierden cuando el servicio se reinicia. Para que la demo nunca se vea rota:
+
+- **Siembra automática:** cuando la app **crea** la base (primer arranque o tras perderse), la rellena con 5 tareas de ejemplo (`DEMO_TASKS` en `app/couch.py`). Solo se siembra al crear la base, no cuando queda vacía, para no resucitar tareas que el usuario borró. Con varios workers solo uno obtiene el `201` de CouchDB, así que no se duplica. Se desactiva con `SEED_DEMO=false`.
+- **Recuperación:** si la base desaparece con la app en marcha, el cliente la recrea (con su índice y datos de ejemplo) y reintenta la petición.
+- **Base dormida:** la API responde `503` y la interfaz muestra "Despertando la base de datos…" y reintenta sola cada 5 s, en lugar de un error.
+- **Keepalive (opcional):** `.github/workflows/keepalive.yml` hace ping a `/health` cada 10 min para evitar que los servicios se duerman. Está apagado por defecto: actívalo creando la variable de GitHub `KEEPALIVE=true` antes de una demo o calificación y desactívalo después, porque el plan gratuito de Render tiene un límite mensual de horas de instancia (según la política que conozco, 750 h compartidas; verifícalo en Render) y dos servicios despiertos 24/7 pueden agotarlo.
+
+Lo que los usuarios añadan sí se pierde al reiniciar. Para conservar datos, usa un plan de pago con disco montado en `/opt/couchdb/data`.

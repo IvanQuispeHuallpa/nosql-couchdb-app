@@ -42,9 +42,9 @@ jobs:
           COUCHDB_PASSWORD: ci-password
         run: |
           docker compose up -d --build --wait
-          docker compose exec -T app python scripts/seed.py
           curl -fsS http://localhost:8000/health
-          curl -fsS http://localhost:8000/api/stats
+          # La base nueva debe quedar sembrada con las 5 tareas de demo
+          curl -fsS http://localhost:8000/api/stats | tee /dev/stderr | grep -q '"total":5'
           docker compose down -v
 
   deploy:

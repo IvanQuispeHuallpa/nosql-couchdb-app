@@ -30,6 +30,8 @@
   .task p { margin:0 0 8px; overflow-wrap:anywhere; }
   .tag { display:inline-block; background:#334155; color:var(--muted); border-radius:999px; padding:1px 9px; font-size:.75rem; margin-right:4px; }
   .actions { display:flex; gap:6px; margin-top:8px; }
+  .notice { background:#3b2f0b; border:1px solid var(--amber); color:#fde68a; border-radius:8px; padding:10px 14px; margin-bottom:16px; }
+  .notice[hidden] { display:none; }
   footer { text-align:center; color:var(--muted); font-size:.85rem; padding:16px; }
 </style>
 </head>
@@ -44,15 +46,20 @@
     <input name="tags" placeholder="etiquetas, separadas, por comas">
     <button>Agregar</button>
   </form>
+  <div class="notice" id="notice" hidden>Despertando la base de datos… (puede tardar cerca de un minuto en el plan gratuito). Reintentando automáticamente.</div>
   <div class="stats" id="stats"></div>
   <div class="filter">Filtrar por etiqueta: <input id="tag" placeholder="p. ej. infra"></div>
   <div class="board" id="board"></div>
 </main>
-<footer>Flask · CouchDB · Docker · GitHub Actions · Render</footer>
+<footer>Flask · CouchDB · Docker · GitHub Actions · Render<br>Demo en plan gratuito: sin disco persistente, las tareas de ejemplo se restauran si la base se reinicia.</footer>
 <script>
 const COLS = [["todo","Por hacer"],["doing","En curso"],["done","Hecho"]];
 const board = document.getElementById("board");
-const api = (path, opts) => fetch(path, opts).then(r => r.json());
+const api = (path, opts) => fetch(path, opts).then(r => {
+  if (!r.ok && r.status === 503) throw new Error("db-unavailable");
+  return r.json();
+});
+const notice = document.getElementById("notice");
 
 function el(tag, props = {}, ...kids) {
   const e = Object.assign(document.createElement(tag), props);
@@ -62,7 +69,16 @@ function el(tag, props = {}, ...kids) {
 
 async function load() {
   const tag = document.getElementById("tag").value.trim().toLowerCase();
-  const [tasks, stats] = await Promise.all([api("/api/tasks" + (tag ? "?tag=" + encodeURIComponent(tag) : "")), api("/api/stats")]);
+  let tasks, stats;
+  try {
+    [tasks, stats] = await Promise.all([api("/api/tasks" + (tag ? "?tag=" + encodeURIComponent(tag) : "")), api("/api/stats")]);
+  } catch (e) {
+    // La base de datos (plan gratuito) puede estar despertando: avisar y reintentar solo.
+    notice.hidden = false;
+    setTimeout(load, 5000);
+    return;
+  }
+  notice.hidden = true;
   document.getElementById("stats").replaceChildren(
     ...COLS.map(([k, label]) => el("span", {}, label + ": ", el("b", {textContent: stats[k]}))),
     el("span", {}, "Total: ", el("b", {textContent: stats.total})));

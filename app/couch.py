@@ -19,11 +19,24 @@ def _normalize(url: str) -> str:
     return url if url.startswith(("http://", "https://")) else f"http://{url}"
 
 
+# Tareas de ejemplo: se insertan cada vez que la base se CREA (primer arranque o tras perderse
+# por un reinicio en un plan sin disco), para que la demo nunca aparezca vacía.
+DEMO_TASKS = [
+    ("Diseñar el modelo de documentos", ["diseño"], "done"),
+    ("Levantar CouchDB con Docker", ["docker", "infra"], "done"),
+    ("Escribir las pruebas con pytest", ["calidad"], "doing"),
+    ("Configurar el pipeline de GitHub Actions", ["ci", "infra"], "todo"),
+    ("Desplegar en Render", ["nube", "infra"], "todo"),
+]
+
+
 class CouchStore:
-    def __init__(self, url: str, db: str, user: str | None = None, password: str | None = None, timeout: float = 15):
+    def __init__(self, url: str, db: str, user: str | None = None, password: str | None = None,
+                 timeout: float = 15, seed: bool = True):
         self.base = _normalize(url)
         self.db = db
         self.timeout = timeout
+        self.seed = seed
         self.http = requests.Session()
         if user:
             self.http.auth = (user, password or "")
@@ -35,6 +48,7 @@ class CouchStore:
             os.getenv("COUCHDB_DB", "tasks"),
             os.getenv("COUCHDB_USER"),
             os.getenv("COUCHDB_PASSWORD"),
+            seed=os.getenv("SEED_DEMO", "true").lower() != "false",
         )
 
     # --- utilidades ---------------------------------------------------------
@@ -63,11 +77,16 @@ class CouchStore:
         r.raise_for_status()
         return True
 
-    def ensure_db(self) -> None:
-        """Crea la base si no existe (PUT es idempotente: 412 = ya existía) y su índice Mango."""
+    def ensure_db(self) -> bool:
+        """Crea la base si no existe (PUT es idempotente: 412 = ya existía) y su índice Mango.
+
+        Si la base se acaba de crear, la rellena con DEMO_TASKS. Devuelve True si la creó.
+        Con varios workers solo uno recibe el 201, así que los datos de demo no se duplican.
+        """
         r = self.http.put(self._url(), timeout=self.timeout)
         if r.status_code not in (201, 202, 412):
             r.raise_for_status()
+        created = r.status_code in (201, 202)
         # Índice Mango para las consultas por tipo/estado (POST _index es idempotente).
         r = self.http.post(
             self._url("/_index"),
@@ -75,13 +94,17 @@ class CouchStore:
             timeout=self.timeout,
         )
         r.raise_for_status()
+        if created and self.seed:
+            for title, tags, status in DEMO_TASKS:
+                self.create(title, tags, status)
+        return created
 
     # --- CRUD ---------------------------------------------------------------
-    def create(self, title: str, tags: list[str]) -> dict:
+    def create(self, title: str, tags: list[str], status: str = "todo") -> dict:
         doc = {
             "type": "task",
             "title": title,
-            "status": "todo",
+            "status": status,
             "tags": tags,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
