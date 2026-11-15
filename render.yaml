@@ -26,11 +26,12 @@ services:
     healthCheckPath: /health
     autoDeploy: false # los despliegues los dispara GitHub Actions (deploy hook)
     envVars:
+      # URL pública de CouchDB, p. ej. https://couchdb-xxxx.onrender.com (protegida con usuario y
+      # contraseña). No se usa la red privada (fromService/hostport) porque en el plan gratuito un
+      # servicio no recibe tráfico privado: la app se quedaba esperando. Render pide este valor
+      # al crear el Blueprint y lo conserva en las sincronizaciones siguientes.
       - key: COUCHDB_URL
-        fromService:
-          type: web
-          name: couchdb
-          property: hostport # red privada de Render: "couchdb:5984"
+        sync: false
       - key: COUCHDB_USER
         fromService:
           type: web

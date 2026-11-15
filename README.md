@@ -2,7 +2,7 @@
 
 App de demostración Flask + **Apache CouchDB** (base de datos NoSQL orientada a documentos): tablero Kanban cuyas tareas son documentos JSON consultados con Mango (`_find`). Empaquetada con Docker, probada y desplegada automáticamente con GitHub Actions en Render, donde tanto la app como CouchDB corren como servicios del mismo Blueprint.
 
-- App en vivo: _pendiente — URL de Render_
+- App en vivo: https://nosql-couchdb-app.onrender.com (plan gratuito: el primer acceso tras un rato inactivo tarda ~1 min)
 - Base de datos NoSQL: CouchDB (sin Redis, MongoDB, Neo4j ni Prometheus)
 
 ## Ejecutar en local
@@ -46,8 +46,9 @@ Secreto de GitHub requerido: `RENDER_DEPLOY_HOOK_URL`. Variable (Settings → Va
 
 ### Puesta en marcha en la nube
 
-1. En Render: **New → Blueprint** con este repositorio. `render.yaml` crea dos servicios: `couchdb` (imagen oficial `couchdb:3.3`, contraseña generada) y `nosql-couchdb-app` (la app), y conecta la app a la base por la red privada de Render sin que tengas que copiar credenciales.
-2. Copiar el *Deploy Hook* del servicio `nosql-couchdb-app` como secreto `RENDER_DEPLOY_HOOK_URL` y su URL pública como variable `APP_URL`.
+1. En Render: **New → Blueprint** con este repositorio. `render.yaml` crea dos servicios: `couchdb` (imagen oficial `couchdb:3.3`, contraseña generada) y `nosql-couchdb-app` (la app). El usuario y la contraseña pasan solos de un servicio al otro (`fromService`).
+2. Render pide `COUCHDB_URL`: pon la URL pública del servicio `couchdb` (`https://couchdb-xxxx.onrender.com`). No se usa la red privada porque en el plan gratuito un servicio no recibe tráfico privado; CouchDB queda protegido con usuario y contraseña. Si la creaste antes de saberla, edítala en *Environment* y elige *Save and deploy*.
+3. Copiar el *Deploy Hook* del servicio `nosql-couchdb-app` como secreto `RENDER_DEPLOY_HOOK_URL` y su URL pública como variable `APP_URL`.
 
 ### Datos en el plan gratuito (no persistentes, pero la demo lo parece)
 
