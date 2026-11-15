@@ -59,7 +59,13 @@ def client():
 
 
 def test_health(client):
-    assert client.get("/health").get_json()["status"] == "ok"
+    body = client.get("/health").get_json()
+    assert body["status"] == "ok" and body["commit"] == "local"
+
+
+def test_liveness_does_not_touch_the_database():
+    app = create_app(store=object())  # cualquier acceso a la base fallaría
+    assert app.test_client().get("/healthz").get_json() == {"status": "ok"}
 
 
 def test_task_lifecycle(client):

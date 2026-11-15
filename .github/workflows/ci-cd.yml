@@ -58,8 +58,12 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL }}
         run: |
-          for i in $(seq 1 30); do
-            if curl -fsS "$APP_URL/health"; then echo; echo "App en línea"; exit 0; fi
-            echo "esperando el despliegue ($i/30)…"; sleep 10
+          # Espera a que /health responda con ESTE commit: así no se valida la versión anterior.
+          want="${GITHUB_SHA::7}"
+          for i in $(seq 1 40); do
+            body=$(curl -fsS -m 90 "$APP_URL/health" || true)
+            echo "$body"
+            if echo "$body" | grep -q "\"commit\":\"$want\""; then echo "App en línea con $want"; exit 0; fi
+            echo "esperando el despliegue de $want ($i/40)…"; sleep 15
           done
-          echo "La app no respondió a tiempo"; exit 1
+          echo "La versión $want no quedó en línea a tiempo"; exit 1

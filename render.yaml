@@ -23,7 +23,7 @@ services:
     name: nosql-couchdb-app
     runtime: docker
     plan: free
-    healthCheckPath: /health
+    healthCheckPath: /healthz # liveness sin base de datos; /health comprueba CouchDB
     autoDeploy: false # los despliegues los dispara GitHub Actions (deploy hook)
     envVars:
       # URL pública de CouchDB, p. ej. https://couchdb-xxxx.onrender.com (protegida con usuario y

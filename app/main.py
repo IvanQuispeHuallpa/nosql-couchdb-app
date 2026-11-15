@@ -1,3 +1,5 @@
+import os
+
 import requests
 from flask import Flask, jsonify, render_template, request
 
@@ -27,10 +29,16 @@ def create_app(store=None) -> Flask:
     def index():
         return render_template("index.html")
 
+    @app.get("/healthz")
+    def liveness():
+        # Liveness para el balanceador: no depende de la base, así un CouchDB lento no tumba el deploy.
+        return {"status": "ok"}
+
     @app.get("/health")
     def health():
         db().ping()
-        return {"status": "ok", "database": "couchdb"}
+        commit = os.environ.get("RENDER_GIT_COMMIT", "local")[:7]
+        return {"status": "ok", "database": "couchdb", "commit": commit}
 
     @app.get("/api/tasks")
     def list_tasks():
