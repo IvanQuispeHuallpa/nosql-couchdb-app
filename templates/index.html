@@ -46,12 +46,12 @@
     <input name="tags" placeholder="etiquetas, separadas, por comas">
     <button>Agregar</button>
   </form>
-  <div class="notice" id="notice" hidden>Despertando la base de datos… (puede tardar cerca de un minuto en el plan gratuito). Reintentando automáticamente.</div>
+  <div class="notice" id="notice" hidden>Conectando con la base de datos… Reintentando automáticamente.</div>
   <div class="stats" id="stats"></div>
   <div class="filter">Filtrar por etiqueta: <input id="tag" placeholder="p. ej. infra"></div>
   <div class="board" id="board"></div>
 </main>
-<footer>Flask · CouchDB · Docker · GitHub Actions · Render<br>Demo en plan gratuito: sin disco persistente, las tareas de ejemplo se restauran si la base se reinicia.</footer>
+<footer>Flask · CouchDB · Docker · GitHub Actions · Render</footer>
 <script>
 const COLS = [["todo","Por hacer"],["doing","En curso"],["done","Hecho"]];
 const board = document.getElementById("board");
