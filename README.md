@@ -5,6 +5,8 @@ App de demostración Flask + **Apache CouchDB** (base de datos NoSQL orientada a
 - App en vivo: https://nosql-couchdb-app.onrender.com (plan gratuito: el primer acceso tras un rato inactivo tarda ~1 min)
 - Base de datos NoSQL: CouchDB (sin Redis, MongoDB, Neo4j ni Prometheus)
 
+![Arquitectura: navegador, API Flask y CouchDB; GitHub Actions despliega en Render](docs/img/03-arquitectura.jpg)
+
 ## Ejecutar en local
 
 ```bash
